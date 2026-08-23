@@ -1,0 +1,32 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- Data & models: never commit these ---
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+models/*
+!models/.gitkeep
+
+# --- Experiment tracking ---
+mlruns/
+mlartifacts/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Tooling caches ---
+.pytest_cache/
+.ruff_cache/
+
+# --- Environment & secrets ---
+.env
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db

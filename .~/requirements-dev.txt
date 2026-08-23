@@ -1,0 +1,21 @@
+# Development dependencies — everything in runtime, plus tooling for
+# EDA (Phase 1), experiment tracking (Phase 3), testing (Phase 4),
+# and drift monitoring (Phase 8).
+
+-r requirements.txt
+
+# EDA & notebooks
+jupyter
+matplotlib
+seaborn
+
+# Experiment tracking
+mlflow
+
+# Testing & quality
+pytest
+httpx          # required by FastAPI's TestClient
+ruff
+
+# Monitoring (Phase 8)
+evidently
