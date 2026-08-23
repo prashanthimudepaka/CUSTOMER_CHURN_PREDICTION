@@ -1,0 +1,11 @@
+# Runtime dependencies — this is what the Docker image (Phase 5) will install.
+# Keep this list minimal: only what's needed to load the model and serve predictions.
+# After installing, freeze exact versions:  pip freeze > requirements.lock.txt
+
+pandas
+scikit-learn
+xgboost
+joblib
+fastapi
+uvicorn[standard]
+pydantic
