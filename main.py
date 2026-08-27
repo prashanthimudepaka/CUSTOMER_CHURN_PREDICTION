@@ -6,6 +6,7 @@ Then open:    http://127.0.0.1:8000
 
 import io
 import json
+import os
 import pathlib
 from datetime import datetime, timedelta
 from typing import Optional
@@ -68,6 +69,66 @@ class FeedbackRequest(BaseModel):
     call_successful: Optional[bool] = None
     actual_churn: Optional[bool] = None
     notes: Optional[str] = None
+
+
+class ExplainRequest(BaseModel):
+    customer_id: str
+    probability: float
+    band: str
+    drivers: list[str]
+    tenure: Optional[float] = None
+
+
+# --- LLM explanations (optional: set ANTHROPIC_API_KEY to enable) ---
+try:
+    import anthropic
+    _LLM_SDK = True
+except ImportError:
+    _LLM_SDK = False
+
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5")
+_llm_client = None
+
+
+def _get_llm():
+    global _llm_client
+    if _llm_client is None and _LLM_SDK and os.getenv("ANTHROPIC_API_KEY"):
+        _llm_client = anthropic.Anthropic()
+    return _llm_client
+
+
+EXPLAIN_SYSTEM = (
+    "You are a customer-retention analyst for a telecom company. Given a "
+    "customer's churn-risk score and the top factors driving it, explain in "
+    "plain English why this customer is at risk. For each factor, write 2-3 "
+    "sentences: what it means and why it raises churn risk. End with one "
+    "concrete retention action for this specific customer. Plain text only, "
+    "no markdown. Keep the whole answer under 180 words."
+)
+
+# Fallback used when no API key is configured or the API call fails.
+DRIVER_NOTES = {
+    "Contract = Month-to-month": "No contract lock-in means zero switching cost — the single strongest churn driver in the model.",
+    "tenure (low)": "A new customer who hasn't built loyalty yet; short-tenure customers leave far more easily than long-time ones.",
+    "InternetService = Fiber optic": "Fiber customers face high bills and heavy competition, so they comparison-shop more than DSL customers.",
+    "TechSupport = No": "Customers without tech support hit frustrations with no help — a classic exit trigger.",
+    "OnlineSecurity = No": "Fewer add-on services means a thinner relationship and less reason to stay.",
+    "PaymentMethod = Electronic check": "Electronic-check payers churn more than auto-pay customers in the Telco data.",
+    "MonthlyCharges (high)": "A high bill invites comparison shopping against competitor offers.",
+    "PaperlessBilling = Yes": "Correlates with digitally-savvy customers who switch providers more readily.",
+}
+
+
+def _template_explanation(req: ExplainRequest) -> str:
+    lines = [f"{req.customer_id} scored {req.probability:.0%} churn risk ({req.band})."]
+    for d in req.drivers:
+        note = DRIVER_NOTES.get(d, "This factor pushes churn risk up in the trained model.")
+        lines.append(f"• {d}: {note}")
+    lines.append(
+        "Suggested action: call with an offer targeting the top driver "
+        "(e.g., a discount for moving to a longer contract)."
+    )
+    return "\n".join(lines)
 
 
 def _pretty(name: str) -> str:
@@ -288,6 +349,47 @@ def get_analytics(days: int = 30, db=Depends(get_db)) -> dict:
             "top_drivers": top_drivers,
         },
     }
+
+
+@app.post("/explain")
+def explain(req: ExplainRequest) -> dict:
+    """Natural-language explanation of one customer's churn risk.
+
+    Uses Claude when ANTHROPIC_API_KEY is set; otherwise falls back to
+    built-in template explanations so the dashboard always works.
+    """
+    client = _get_llm()
+    if client is None:
+        return {"explanation": _template_explanation(req), "source": "template"}
+
+    tenure_txt = f"{req.tenure:.0f} months" if req.tenure is not None else "unknown"
+    prompt = (
+        f"Customer {req.customer_id}: churn probability {req.probability:.0%}, "
+        f"risk band {req.band}, tenure {tenure_txt}. "
+        f"Top churn drivers from the model: {', '.join(req.drivers) or 'none identified'}."
+    )
+    try:
+        msg = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1024,
+            system=EXPLAIN_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if msg.stop_reason == "refusal":
+            return {"explanation": _template_explanation(req), "source": "template"}
+        text = next((b.text for b in msg.content if b.type == "text"), "")
+        if not text.strip():
+            return {"explanation": _template_explanation(req), "source": "template"}
+        return {"explanation": text, "source": "llm", "model": CLAUDE_MODEL}
+    except anthropic.AuthenticationError:
+        return {"explanation": _template_explanation(req), "source": "template",
+                "note": "Invalid ANTHROPIC_API_KEY — using built-in explanation."}
+    except anthropic.RateLimitError:
+        return {"explanation": _template_explanation(req), "source": "template",
+                "note": "Rate limited — using built-in explanation."}
+    except (anthropic.APIStatusError, anthropic.APIConnectionError):
+        return {"explanation": _template_explanation(req), "source": "template",
+                "note": "LLM unavailable — using built-in explanation."}
 
 
 @app.get("/history")

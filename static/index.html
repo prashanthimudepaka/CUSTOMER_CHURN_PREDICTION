@@ -89,6 +89,9 @@
   .b-Low .band{background:var(--low-soft);color:var(--low)}
   .drv{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;
        padding:2px 8px;font-size:.78rem;color:var(--muted);margin:2px 4px 2px 0}
+  .explain-btn{padding:5px 10px;font-size:.78rem;border-radius:6px;white-space:nowrap}
+  .explain-row td{background:var(--bg);font-size:.88rem;line-height:1.6;
+       white-space:pre-wrap;color:var(--ink);border-left:3px solid var(--high)}
   .foot{margin-top:16px;font-size:.82rem;color:var(--muted)}
 
   /* Tabs */
@@ -168,7 +171,7 @@
         <table>
           <thead><tr>
             <th>Customer</th><th>Churn risk</th><th>Band</th>
-            <th class="col-drivers">Why they're at risk</th>
+            <th class="col-drivers">Why they're at risk</th><th></th>
           </tr></thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -306,13 +309,14 @@ function render(data, filename) {
     chip(s.low, 'low risk', 'low') +
     chip((s.median_probability * 100).toFixed(0) + '%', 'median risk');
 
-  $('tbody').innerHTML = data.rows.map(r => `
+  $('tbody').innerHTML = data.rows.map((r, i) => `
     <tr class="b-${r.band}">
       <td class="mono">${esc(r.customer_id)}</td>
       <td class="risk"><span class="pct">${(r.probability * 100).toFixed(1)}%</span>
         <div class="bar"><i style="width:${(r.probability * 100).toFixed(0)}%"></i></div></td>
       <td><span class="band">${r.band}</span></td>
       <td class="col-drivers">${r.drivers.map(d => `<span class="drv">${esc(d)}</span>`).join('')}</td>
+      <td><button class="btn-ghost explain-btn" data-i="${i}" title="AI explanation">💡 Explain</button></td>
     </tr>`).join('');
 
   $('tableTitle').textContent = 'Ranked by risk — ' + filename;
@@ -402,6 +406,43 @@ async function loadHistory() {
     console.error(err);
   }
 }
+
+// ===== AI EXPLANATIONS =====
+$('tbody').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.explain-btn');
+  if (!btn) return;
+  const row = btn.closest('tr');
+
+  // Toggle: clicking again removes the explanation
+  const next = row.nextElementSibling;
+  if (next && next.classList.contains('explain-row')) { next.remove(); return; }
+
+  const r = lastRows[+btn.dataset.i];
+  const tr = document.createElement('tr');
+  tr.className = 'explain-row';
+  tr.innerHTML = '<td colspan="5" class="explain-cell">🤖 Analyzing this customer…</td>';
+  row.after(tr);
+
+  try {
+    const res = await fetch('/explain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: r.customer_id,
+        probability: r.probability,
+        band: r.band,
+        drivers: r.drivers,
+        tenure: r.tenure
+      })
+    });
+    const data = await res.json();
+    tr.firstElementChild.textContent =
+      (data.source === 'llm' ? '🤖 ' : '📋 ') + data.explanation +
+      (data.note ? '\n(' + data.note + ')' : '');
+  } catch (err) {
+    tr.firstElementChild.textContent = 'Could not generate explanation: ' + err.message;
+  }
+});
 
 // On page load: if the database already has history, reveal the tabs
 // so returning users can browse History/Analytics without re-scoring.
