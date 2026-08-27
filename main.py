@@ -1,45 +1,77 @@
-"""Churn risk scoring API - Minimal working version."""
+"""Churn risk scoring API.
+
+Run locally:  uvicorn main:app --reload
+Then open:    http://127.0.0.1:8000
+"""
 
 import io
 import json
 import pathlib
+from datetime import datetime, timedelta
+from typing import Optional
 
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from common import ID_COL, TARGET_COL, clean_dataframe, missing_columns
+
+# Database is optional: the app still serves predictions if the DB is down.
+try:
+    from sqlalchemy.orm import Session
+    from database import RetentionFeedback, ScoringResult, get_db
+    DB_AVAILABLE = True
+except Exception as exc:  # pragma: no cover
+    print(f"[Warning] Database unavailable, history disabled: {exc}")
+    DB_AVAILABLE = False
+
+    def get_db():  # no-op dependency so endpoints still work
+        yield None
 
 MODEL_PATH = pathlib.Path("model/model.pkl")
 METRICS_PATH = pathlib.Path("model/metrics.json")
 SAMPLE_PATH = pathlib.Path("data/sample_customers.csv")
 MAX_ROWS = 5000
 
-app = FastAPI(title="Churn Risk API", version="0.1.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Train on first boot if the model isn't there (e.g. fresh deploy).
 if not MODEL_PATH.exists():
-    raise RuntimeError("model/model.pkl not found — run `python train_model.py` first.")
+    print("[Startup] model/model.pkl not found — training now...")
+    import train_model
+    train_model.main()
 
 model = joblib.load(MODEL_PATH)
 metrics = json.loads(METRICS_PATH.read_text()) if METRICS_PATH.exists() else {}
 
+app = FastAPI(title="Churn Risk API", version="0.2.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten to your frontend's domain in stage 2
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Pre-compute what we need for per-customer explanations.
 _prep = model.named_steps["prep"]
 _clf = model.named_steps["clf"]
 _coefs = _clf.coef_[0]
 _feature_names = _prep.get_feature_names_out()
 
 
+class FeedbackRequest(BaseModel):
+    customer_id: str
+    call_made: bool = False
+    call_successful: Optional[bool] = None
+    actual_churn: Optional[bool] = None
+    notes: Optional[str] = None
+
+
 def _pretty(name: str) -> str:
+    """'cat__Contract_Month-to-month' -> 'Contract = Month-to-month'."""
     if name.startswith("cat__"):
         rest = name[len("cat__"):]
         for col_len in range(len(rest), 0, -1):
@@ -58,7 +90,7 @@ def _band(p: float) -> str:
     return "Low"
 
 
-def score_dataframe(df: pd.DataFrame) -> dict:
+def score_dataframe(df: pd.DataFrame, db=None) -> dict:
     df = clean_dataframe(df)
 
     missing = missing_columns(df)
@@ -77,6 +109,8 @@ def score_dataframe(df: pd.DataFrame) -> dict:
 
     probs = model.predict_proba(df)[:, 1]
 
+    # Per-row drivers: each transformed feature's contribution to the
+    # churn logit is (feature value x coefficient).
     X_t = _prep.transform(df)
     X_t = X_t.toarray() if hasattr(X_t, "toarray") else np.asarray(X_t)
     contributions = X_t * _coefs
@@ -86,6 +120,7 @@ def score_dataframe(df: pd.DataFrame) -> dict:
         if ID_COL in df.columns
         else [f"row {i + 1}" for i in range(len(df))]
     )
+    tenures = df["tenure"].tolist() if "tenure" in df.columns else [None] * len(df)
 
     rows = []
     for i, p in enumerate(probs):
@@ -103,7 +138,23 @@ def score_dataframe(df: pd.DataFrame) -> dict:
             "probability": round(float(p), 4),
             "band": _band(float(p)),
             "drivers": drivers,
+            "tenure": tenures[i],
         })
+
+    # Persist scoring history when the database is up.
+    if DB_AVAILABLE and db is not None:
+        try:
+            for row in rows:
+                db.add(ScoringResult(
+                    customer_id=row["customer_id"],
+                    churn_probability=row["probability"],
+                    risk_band=row["band"],
+                    tenure=row["tenure"],
+                    top_drivers=json.dumps(row["drivers"]),
+                ))
+            db.commit()
+        except Exception as exc:
+            print(f"[Warning] Could not save scoring history: {exc}")
 
     rows.sort(key=lambda r: r["probability"], reverse=True)
     bands = [r["band"] for r in rows]
@@ -122,7 +173,12 @@ def score_dataframe(df: pd.DataFrame) -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "model_loaded": True, "metrics": metrics}
+    return {
+        "status": "ok",
+        "model_loaded": True,
+        "database": "connected" if DB_AVAILABLE else "disabled",
+        "metrics": metrics,
+    }
 
 
 @app.get("/sample")
@@ -133,9 +189,7 @@ def sample() -> FileResponse:
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = None) -> dict:
-    if file is None:
-        raise HTTPException(status_code=400, detail="No file provided.")
+async def predict(file: UploadFile = File(...), db=Depends(get_db)) -> dict:
     if file.filename and not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file.")
     raw = await file.read()
@@ -143,8 +197,83 @@ async def predict(file: UploadFile = None) -> dict:
         df = pd.read_csv(io.BytesIO(raw))
     except Exception:
         raise HTTPException(status_code=400, detail="Could not parse that file as CSV.")
-    df = df.drop(columns=["Churn"], errors="ignore")
-    return score_dataframe(df)
+    # A labeled export is fine — just ignore the target column.
+    df = df.drop(columns=[TARGET_COL], errors="ignore")
+    return score_dataframe(df, db=db)
+
+
+@app.post("/feedback")
+def submit_feedback(feedback: FeedbackRequest, db=Depends(get_db)) -> dict:
+    """Record retention call outcome for a customer."""
+    if not DB_AVAILABLE or db is None:
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    last_score = (
+        db.query(ScoringResult)
+        .filter(ScoringResult.customer_id == feedback.customer_id)
+        .order_by(ScoringResult.timestamp.desc())
+        .first()
+    )
+    db.add(RetentionFeedback(
+        customer_id=feedback.customer_id,
+        churn_probability=last_score.churn_probability if last_score else None,
+        call_made=feedback.call_made,
+        call_successful=feedback.call_successful,
+        actual_churn=feedback.actual_churn,
+        notes=feedback.notes,
+    ))
+    db.commit()
+    return {"status": "feedback recorded", "customer_id": feedback.customer_id}
+
+
+@app.get("/analytics")
+def get_analytics(days: int = 30, db=Depends(get_db)) -> dict:
+    """Aggregated history for the analytics dashboard."""
+    if not DB_AVAILABLE or db is None:
+        return {"error": "Database not configured"}
+
+    since = datetime.utcnow() - timedelta(days=days)
+    scores = db.query(ScoringResult).filter(ScoringResult.timestamp >= since).all()
+    feedback_rows = db.query(RetentionFeedback).filter(RetentionFeedback.timestamp >= since).all()
+
+    if not scores:
+        return {"error": "No data available"}
+
+    probabilities = [s.churn_probability for s in scores]
+    risk_bands = [s.risk_band for s in scores]
+    tenures = [s.tenure for s in scores if s.tenure is not None]
+
+    calls_made = [f for f in feedback_rows if f.call_made]
+    calls_successful = [f for f in calls_made if f.call_successful]
+    success_rate = len(calls_successful) / len(calls_made) * 100 if calls_made else 0
+
+    actual_churns = [f for f in feedback_rows if f.actual_churn]
+    correct = [f for f in actual_churns if (f.churn_probability or 0) >= 0.5]
+    accuracy = len(correct) / len(actual_churns) * 100 if actual_churns else 0
+
+    return {
+        "period_days": days,
+        "total_scored": len(scores),
+        "summary": {
+            "high_risk": risk_bands.count("High"),
+            "medium_risk": risk_bands.count("Medium"),
+            "low_risk": risk_bands.count("Low"),
+            "avg_probability": round(float(np.mean(probabilities)), 4),
+            "median_probability": round(float(np.median(probabilities)), 4),
+        },
+        "retention": {
+            "calls_made": len(calls_made),
+            "calls_successful": len(calls_successful),
+            "success_rate": round(success_rate, 2),
+        },
+        "prediction_accuracy": round(accuracy, 2),
+        "chart_data": {
+            "probabilities": [round(p, 4) for p in probabilities],
+            "risk_bands": risk_bands,
+            "tenures": [round(t, 0) for t in tenures],
+            "timestamps": [str(s.timestamp) for s in scores],
+        },
+    }
 
 
 @app.get("/")
