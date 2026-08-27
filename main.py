@@ -17,10 +17,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from common import ID_COL, TARGET_COL, clean_dataframe, missing_columns
-from database import ScoringResult, RetentionFeedback, get_db
+
+# Database imports - safe fallback
+try:
+    from sqlalchemy.orm import Session
+    from database import ScoringResult, RetentionFeedback, get_db
+    DB_AVAILABLE = True
+except Exception as e:
+    print(f"[Warning] Database not available: {e}")
+    DB_AVAILABLE = False
+    get_db = None
 
 MODEL_PATH = pathlib.Path("model/model.pkl")
 METRICS_PATH = pathlib.Path("model/metrics.json")
@@ -169,7 +177,7 @@ def sample() -> FileResponse:
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)) -> dict:
+async def predict(file: UploadFile = File(...), db: Session = Depends(get_db) if DB_AVAILABLE else None) -> dict:
     if file.filename and not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file.")
     raw = await file.read()
