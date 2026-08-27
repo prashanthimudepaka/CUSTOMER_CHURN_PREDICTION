@@ -4,7 +4,8 @@ Upload a customer CSV, get back every customer scored for churn risk, ranked,
 and tagged with the top reasons they're at risk — so a retention team knows who
 to call first.
 
-Live demo: <add your URL here after deploying>
+**Live demo: https://churn-triage.onrender.com** 🚀
+*(free tier — first load after 15 min idle takes ~30-50s to wake up)*
 
 ## What it does
 

@@ -251,6 +251,19 @@ def get_analytics(days: int = 30, db=Depends(get_db)) -> dict:
     correct = [f for f in actual_churns if (f.churn_probability or 0) >= 0.5]
     accuracy = len(correct) / len(actual_churns) * 100 if actual_churns else 0
 
+    # Which drivers appear most often across all scored customers.
+    from collections import Counter
+    driver_counts: Counter = Counter()
+    for s in scores:
+        if s.top_drivers:
+            try:
+                driver_counts.update(json.loads(s.top_drivers))
+            except Exception:
+                pass
+    top_drivers = [
+        {"driver": d, "count": c} for d, c in driver_counts.most_common(6)
+    ]
+
     return {
         "period_days": days,
         "total_scored": len(scores),
@@ -272,7 +285,53 @@ def get_analytics(days: int = 30, db=Depends(get_db)) -> dict:
             "risk_bands": risk_bands,
             "tenures": [round(t, 0) for t in tenures],
             "timestamps": [str(s.timestamp) for s in scores],
+            "top_drivers": top_drivers,
         },
+    }
+
+
+@app.get("/history")
+def get_history(limit: int = 200, db=Depends(get_db)) -> dict:
+    """Individual records: every scoring event and every retention call."""
+    if not DB_AVAILABLE or db is None:
+        return {"error": "Database not configured"}
+
+    scores = (
+        db.query(ScoringResult)
+        .order_by(ScoringResult.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+    feedback = (
+        db.query(RetentionFeedback)
+        .order_by(RetentionFeedback.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "scores": [
+            {
+                "timestamp": str(s.timestamp),
+                "customer_id": s.customer_id,
+                "probability": s.churn_probability,
+                "band": s.risk_band,
+                "drivers": json.loads(s.top_drivers) if s.top_drivers else [],
+            }
+            for s in scores
+        ],
+        "feedback": [
+            {
+                "timestamp": str(f.timestamp),
+                "customer_id": f.customer_id,
+                "probability": f.churn_probability,
+                "call_made": f.call_made,
+                "call_successful": f.call_successful,
+                "actual_churn": f.actual_churn,
+                "notes": f.notes,
+            }
+            for f in feedback
+        ],
     }
 
 

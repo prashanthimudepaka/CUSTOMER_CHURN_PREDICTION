@@ -154,6 +154,7 @@
       <button class="tab active" data-tab="results">Results</button>
       <button class="tab" data-tab="analytics">Analytics</button>
       <button class="tab" data-tab="retention">Retention Tracker</button>
+      <button class="tab" data-tab="history">History</button>
     </div>
 
     <!-- Results Tab -->
@@ -218,6 +219,34 @@
         <button class="btn-primary" id="submitFeedbackBtn">Record Outcome</button>
       </div>
       <div id="feedbackStatus" class="status" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-content" id="history-tab">
+      <div class="tablecard" style="margin-bottom:20px">
+        <div class="tablehead"><h2>📞 Retention Call Records</h2></div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>When</th><th>Customer</th><th>Risk at scoring</th>
+              <th>Call made</th><th>Outcome</th><th>Notes</th>
+            </tr></thead>
+            <tbody id="feedbackHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tablecard">
+        <div class="tablehead"><h2>📊 Scoring History</h2></div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>When</th><th>Customer</th><th>Churn risk</th>
+              <th>Band</th><th class="col-drivers">Drivers</th>
+            </tr></thead>
+            <tbody id="scoreHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </section>
 </div>
@@ -328,10 +357,63 @@ document.querySelectorAll('.tab').forEach(tab => {
     $(`${tabName}-tab`).classList.add('show');
     tab.classList.add('active');
 
-    // Load analytics if Analytics tab
+    // Load data for tabs that need it
     if (tabName === 'analytics') loadAnalytics();
+    if (tabName === 'history') loadHistory();
   });
 });
+
+// ===== HISTORY =====
+async function loadHistory() {
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+    if (data.error) {
+      $('feedbackHistoryBody').innerHTML = `<tr><td colspan="6">${esc(data.error)}</td></tr>`;
+      $('scoreHistoryBody').innerHTML = `<tr><td colspan="5">${esc(data.error)}</td></tr>`;
+      return;
+    }
+
+    const when = (t) => new Date(t + 'Z').toLocaleString();
+
+    $('feedbackHistoryBody').innerHTML = data.feedback.length
+      ? data.feedback.map(f => `
+        <tr>
+          <td>${when(f.timestamp)}</td>
+          <td class="mono">${esc(f.customer_id)}</td>
+          <td>${f.probability != null ? (f.probability * 100).toFixed(1) + '%' : '—'}</td>
+          <td>${f.call_made ? 'Yes' : 'No'}</td>
+          <td>${f.call_successful === true ? '✓ Stayed' : f.call_successful === false ? '✗ Left' : '—'}</td>
+          <td>${esc(f.notes || '')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="6" style="color:var(--muted)">No retention calls recorded yet — log one in the Retention Tracker tab.</td></tr>';
+
+    $('scoreHistoryBody').innerHTML = data.scores.length
+      ? data.scores.map(s => `
+        <tr class="b-${s.band}">
+          <td>${when(s.timestamp)}</td>
+          <td class="mono">${esc(s.customer_id)}</td>
+          <td><span class="pct mono">${(s.probability * 100).toFixed(1)}%</span></td>
+          <td><span class="band">${s.band}</span></td>
+          <td class="col-drivers">${s.drivers.map(d => `<span class="drv">${esc(d)}</span>`).join('')}</td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" style="color:var(--muted)">No customers scored yet.</td></tr>';
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// On page load: if the database already has history, reveal the tabs
+// so returning users can browse History/Analytics without re-scoring.
+(async () => {
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+    if (!data.error && ((data.scores || []).length || (data.feedback || []).length)) {
+      $('results').classList.add('show');
+    }
+  } catch {}
+})();
 
 // ===== ANALYTICS =====
 async function loadAnalytics() {
@@ -410,15 +492,16 @@ function renderCharts(data) {
     });
   }
 
-  // Top drivers placeholder
+  // Top drivers — real counts of how often each driver appears
+  const drv = data.chart_data.top_drivers || [];
   Plotly.newPlot('driversChart', [{
-    x: ['Month-to-month', 'Fiber Optic', 'No TechSupport', 'High Charges'],
-    y: [0.8, 0.6, 0.5, 0.4],
+    x: drv.map(d => d.driver),
+    y: drv.map(d => d.count),
     type: 'bar',
     marker: { color: '#F96167' }
   }], {
-    xaxis: { title: '' },
-    yaxis: { title: 'Impact' },
+    xaxis: { title: '', tickangle: -30, automargin: true },
+    yaxis: { title: 'Customers affected' },
     margin: { l: 50, r: 20, t: 0, b: 60 },
     showlegend: false,
     height: 300
