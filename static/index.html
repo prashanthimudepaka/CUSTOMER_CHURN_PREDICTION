@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Churn Triage — who to call before they leave</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F7F9; --surface:#FFFFFF; --ink:#171A21; --muted:#6B7280;
+    --line:#E5E8ED;
+    --high:#C4372C; --high-soft:#FBEAE8;
+    --med:#B97E10;  --med-soft:#FBF3E2;
+    --low:#2E7D4F;  --low-soft:#E8F3EC;
+    --focus:#171A21;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{font-size:16px}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.5; min-height:100vh; padding:0 20px 80px;
+  }
+  .wrap{max-width:960px;margin:0 auto}
+  header{padding:44px 0 8px}
+  .brand{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:1.05rem;letter-spacing:.01em}
+  .brand .dot{color:var(--high)}
+  h1{
+    font-family:"Space Grotesk",sans-serif;font-weight:700;
+    font-size:clamp(1.9rem,4.5vw,2.9rem);line-height:1.12;
+    margin:26px 0 10px;max-width:21ch;
+  }
+  .sub{color:var(--muted);max-width:52ch;margin-bottom:30px}
+  .mono{font-family:"IBM Plex Mono",monospace}
+
+  .dropzone{
+    background:var(--surface);border:1.5px dashed var(--line);border-radius:14px;
+    padding:44px 28px;text-align:center;transition:border-color .15s ease;
+  }
+  .dropzone.dragover{border-color:var(--ink)}
+  .dropzone p{color:var(--muted);margin-top:10px;font-size:.92rem}
+  .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  button{
+    font:inherit;font-weight:600;border-radius:9px;padding:11px 20px;cursor:pointer;
+    border:1.5px solid var(--ink);transition:transform .08s ease;
+  }
+  button:active{transform:translateY(1px)}
+  button:focus-visible{outline:2.5px solid var(--focus);outline-offset:2px}
+  .btn-primary{background:var(--ink);color:#fff}
+  .btn-ghost{background:transparent;color:var(--ink)}
+  .status{margin-top:14px;font-size:.9rem;color:var(--muted);min-height:1.4em}
+  .status.error{color:var(--high)}
+
+  .results{display:none;margin-top:34px}
+  .results.show{display:block}
+  .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .chip{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;min-width:118px;
+  }
+  .chip .n{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:1.35rem}
+  .chip .l{font-size:.78rem;color:var(--muted);margin-top:2px}
+  .chip.high .n{color:var(--high)}
+  .chip.med  .n{color:var(--med)}
+  .chip.low  .n{color:var(--low)}
+
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .tablehead{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);gap:10px;flex-wrap:wrap}
+  .tablehead h2{font-family:"Space Grotesk",sans-serif;font-size:1.05rem}
+  table{width:100%;border-collapse:collapse;font-size:.92rem}
+  th{
+    text-align:left;padding:10px 18px;color:var(--muted);font-weight:500;
+    font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;
+    border-bottom:1px solid var(--line);
+  }
+  td{padding:13px 18px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .risk{min-width:150px}
+  .risk .pct{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .bar{height:4px;border-radius:2px;background:var(--line);margin-top:6px;max-width:120px}
+  .bar i{display:block;height:100%;border-radius:2px}
+  tr.b-High .bar i{background:var(--high)}
+  tr.b-Medium .bar i{background:var(--med)}
+  tr.b-Low .bar i{background:var(--low)}
+  .band{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.76rem;font-weight:600}
+  .b-High .band{background:var(--high-soft);color:var(--high)}
+  .b-Medium .band{background:var(--med-soft);color:var(--med)}
+  .b-Low .band{background:var(--low-soft);color:var(--low)}
+  .drv{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;
+       padding:2px 8px;font-size:.78rem;color:var(--muted);margin:2px 4px 2px 0}
+  .foot{margin-top:16px;font-size:.82rem;color:var(--muted)}
+
+  /* Tabs */
+  .tabs{display:flex;gap:8px;margin-top:24px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .tab{padding:10px 16px;border:none;background:transparent;cursor:pointer;color:var(--muted);font-weight:600;border-radius:0}
+  .tab.active{color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:10px}
+
+  /* Tab content */
+  .tab-content{display:none;margin-top:20px}
+  .tab-content.show{display:block}
+
+  /* Charts */
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+  .chart-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;overflow:hidden}
+  .chart-title{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:1rem;margin-bottom:12px}
+  #probDistChart, #riskPieChart, #tenureChart, #driversChart{height:300px;width:100%}
+
+  /* Analytics cards */
+  .analytics-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-top:16px}
+  .analytics-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .analytics-value{font-size:1.8rem;font-weight:700;color:var(--high);margin-top:4px}
+  .analytics-label{font-size:.85rem;color:var(--muted);margin-top:4px}
+
+  /* Retention feedback */
+  .feedback-form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:20px;max-width:500px}
+  .feedback-form input, .feedback-form select, .feedback-form textarea{width:100%;padding:8px;margin:8px 0 16px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:.95rem}
+  .feedback-form button{width:100%;margin-top:12px}
+
+  @media (max-width:640px){
+    .col-drivers{display:none}
+    .charts-grid{grid-template-columns:1fr}
+    .analytics-row{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div class="wrap">
+  <header>
+    <div class="brand">churn<span class="dot">.</span>triage</div>
+    <h1>Know who's leaving before they leave.</h1>
+    <p class="sub">Upload a customer CSV. Every customer comes back scored, ranked,
+    and tagged with the top reasons they're at risk — so a retention team knows
+    exactly who to call first.</p>
+  </header>
+
+  <div class="dropzone" id="dropzone">
+    <div class="actions">
+      <button class="btn-primary" id="uploadBtn">Upload customer CSV</button>
+      <button class="btn-ghost" id="sampleBtn">Score sample data</button>
+    </div>
+    <p>or drag a .csv here · expects the Telco customer schema · nothing is stored</p>
+    <input type="file" id="fileInput" accept=".csv" hidden>
+    <div class="status" id="status" role="status"></div>
+  </div>
+
+  <section class="results" id="results" aria-live="polite">
+    <div class="summary" id="summary"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="results">Results</button>
+      <button class="tab" data-tab="analytics">Analytics</button>
+      <button class="tab" data-tab="retention">Retention Tracker</button>
+    </div>
+
+    <!-- Results Tab -->
+    <div class="tab-content show" id="results-tab">
+      <div class="tablecard">
+      <div class="tablehead">
+        <h2 id="tableTitle">Ranked by risk</h2>
+        <button class="btn-ghost" id="downloadBtn">Download scored CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Customer</th><th>Churn risk</th><th>Band</th>
+            <th class="col-drivers">Why they're at risk</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <p class="foot" id="modelFoot"></p>
+    </div>
+
+    <!-- Analytics Tab -->
+    <div class="tab-content" id="analytics-tab">
+      <div class="analytics-row" id="analyticsCards"></div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Probability Distribution</div>
+          <div id="probDistChart"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Risk Band Breakdown</div>
+          <div id="riskPieChart"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Tenure vs Churn</div>
+          <div id="tenureChart"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top Drivers Impact</div>
+          <div id="driversChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retention Tracker Tab -->
+    <div class="tab-content" id="retention-tab">
+      <div class="feedback-form">
+        <h3>Record Retention Call</h3>
+        <input type="text" id="feedbackCustomerId" placeholder="Customer ID" required>
+        <select id="feedbackCallMade">
+          <option value="">Select...</option>
+          <option value="true">Call made</option>
+          <option value="false">No call</option>
+        </select>
+        <select id="feedbackSuccess">
+          <option value="">Call outcome...</option>
+          <option value="true">Customer stayed ✓</option>
+          <option value="false">Customer left ✗</option>
+        </select>
+        <textarea id="feedbackNotes" placeholder="Notes..." maxlength="500" rows="3"></textarea>
+        <button class="btn-primary" id="submitFeedbackBtn">Record Outcome</button>
+      </div>
+      <div id="feedbackStatus" class="status" style="margin-top:12px;"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastRows = [];
+
+$('uploadBtn').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', (e) => {
+  if (e.target.files[0]) score(e.target.files[0]);
+  e.target.value = '';
+});
+
+const dz = $('dropzone');
+['dragover','dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e) => {
+  e.preventDefault();
+  dz.classList.toggle('dragover', ev === 'dragover');
+  if (ev === 'drop' && e.dataTransfer.files[0]) score(e.dataTransfer.files[0]);
+}));
+
+$('sampleBtn').addEventListener('click', async () => {
+  setStatus('Fetching sample data…');
+  try {
+    const res = await fetch('/sample');
+    if (!res.ok) throw new Error('Sample data unavailable.');
+    const blob = await res.blob();
+    score(new File([blob], 'sample_customers.csv', { type: 'text/csv' }));
+  } catch (err) { setStatus(err.message, true); }
+});
+
+async function score(file) {
+  setStatus('Scoring ' + file.name + '…');
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/predict', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Scoring failed.');
+    render(data, file.name);
+    setStatus('');
+  } catch (err) { setStatus(err.message, true); }
+}
+
+function setStatus(msg, isError) {
+  const el = $('status');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+}
+
+function render(data, filename) {
+  const s = data.summary;
+  $('summary').innerHTML =
+    chip(s.customers, 'customers scored') +
+    chip(s.high, 'high risk', 'high') +
+    chip(s.medium, 'medium risk', 'med') +
+    chip(s.low, 'low risk', 'low') +
+    chip((s.median_probability * 100).toFixed(0) + '%', 'median risk');
+
+  $('tbody').innerHTML = data.rows.map(r => `
+    <tr class="b-${r.band}">
+      <td class="mono">${esc(r.customer_id)}</td>
+      <td class="risk"><span class="pct">${(r.probability * 100).toFixed(1)}%</span>
+        <div class="bar"><i style="width:${(r.probability * 100).toFixed(0)}%"></i></div></td>
+      <td><span class="band">${r.band}</span></td>
+      <td class="col-drivers">${r.drivers.map(d => `<span class="drv">${esc(d)}</span>`).join('')}</td>
+    </tr>`).join('');
+
+  $('tableTitle').textContent = 'Ranked by risk — ' + filename;
+  $('modelFoot').textContent = data.model.roc_auc
+    ? `Logistic regression · held-out ROC-AUC ${data.model.roc_auc} · drivers are the strongest per-customer contributions toward churn`
+    : '';
+  lastRows = data.rows;
+  $('results').classList.add('show');
+  $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function chip(n, label, cls) {
+  return `<div class="chip ${cls || ''}"><div class="n">${n}</div><div class="l">${label}</div></div>`;
+}
+
+function esc(t) {
+  return String(t).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+$('downloadBtn').addEventListener('click', () => {
+  const header = 'customer_id,churn_probability,risk_band,top_drivers\n';
+  const body = lastRows.map(r =>
+    [r.customer_id, r.probability, r.band, '"' + r.drivers.join('; ') + '"'].join(',')
+  ).join('\n');
+  const url = URL.createObjectURL(new Blob([header + body], { type: 'text/csv' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'scored_customers.csv' });
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ===== TAB SWITCHING =====
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.dataset.tab;
+
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('show'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+
+    // Show selected tab
+    $(`${tabName}-tab`).classList.add('show');
+    tab.classList.add('active');
+
+    // Load analytics if Analytics tab
+    if (tabName === 'analytics') loadAnalytics();
+  });
+});
+
+// ===== ANALYTICS =====
+async function loadAnalytics() {
+  try {
+    const res = await fetch('/analytics');
+    if (!res.ok) throw new Error('Failed to load analytics');
+    const data = await res.json();
+    renderAnalytics(data);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderAnalytics(data) {
+  if (data.error) {
+    $('analyticsCards').innerHTML = '<p style="color: #999;">No data available yet. Score some customers first.</p>';
+    return;
+  }
+
+  // Render cards
+  const cards = [
+    { label: 'Total Scored', value: data.total_scored },
+    { label: 'High Risk', value: data.summary.high_risk },
+    { label: 'Success Rate', value: data.retention.success_rate + '%' },
+    { label: 'Avg Probability', value: (data.summary.avg_probability * 100).toFixed(1) + '%' },
+  ];
+
+  $('analyticsCards').innerHTML = cards.map(c => `
+    <div class="analytics-card">
+      <div class="analytics-label">${c.label}</div>
+      <div class="analytics-value">${c.value}</div>
+    </div>
+  `).join('');
+
+  // Render charts
+  renderCharts(data);
+}
+
+function renderCharts(data) {
+  const probs = data.chart_data.probabilities;
+  const bands = data.chart_data.risk_bands;
+  const tenures = data.chart_data.tenures;
+
+  // Probability distribution
+  Plotly.newPlot('probDistChart', [{
+    x: probs,
+    type: 'histogram',
+    marker: { color: '#C4372C' },
+    nbinsx: 20
+  }], { margin: { l: 40, r: 20, t: 0, b: 30 }, showlegend: false, height: 300 });
+
+  // Risk pie chart
+  const bandCounts = { High: 0, Medium: 0, Low: 0 };
+  bands.forEach(b => bandCounts[b]++);
+  Plotly.newPlot('riskPieChart', [{
+    labels: Object.keys(bandCounts),
+    values: Object.values(bandCounts),
+    type: 'pie',
+    marker: { colors: ['#C4372C', '#B97E10', '#2E7D4F'] }
+  }], { margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: true, height: 300 });
+
+  // Tenure vs Churn
+  if (tenures.length > 0) {
+    Plotly.newPlot('tenureChart', [{
+      x: tenures,
+      y: probs,
+      mode: 'markers',
+      type: 'scatter',
+      marker: { color: probs, colorscale: 'Reds', size: 6, showscale: false }
+    }], {
+      xaxis: { title: 'Tenure (months)' },
+      yaxis: { title: 'Churn Probability' },
+      margin: { l: 50, r: 20, t: 0, b: 40 },
+      showlegend: false,
+      height: 300
+    });
+  }
+
+  // Top drivers placeholder
+  Plotly.newPlot('driversChart', [{
+    x: ['Month-to-month', 'Fiber Optic', 'No TechSupport', 'High Charges'],
+    y: [0.8, 0.6, 0.5, 0.4],
+    type: 'bar',
+    marker: { color: '#F96167' }
+  }], {
+    xaxis: { title: '' },
+    yaxis: { title: 'Impact' },
+    margin: { l: 50, r: 20, t: 0, b: 60 },
+    showlegend: false,
+    height: 300
+  });
+}
+
+// ===== RETENTION FEEDBACK =====
+$('submitFeedbackBtn').addEventListener('click', async () => {
+  const customerId = $('feedbackCustomerId').value;
+  const callMade = $('feedbackCallMade').value;
+  const success = $('feedbackSuccess').value;
+  const notes = $('feedbackNotes').value;
+
+  if (!customerId || callMade === '') {
+    $('feedbackStatus').textContent = 'Please fill required fields';
+    $('feedbackStatus').classList.add('error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: customerId,
+        call_made: callMade === 'true',
+        call_successful: success === 'true' ? true : (success === 'false' ? false : null),
+        notes: notes
+      })
+    });
+
+    if (!res.ok) throw new Error('Failed to submit feedback');
+
+    $('feedbackStatus').textContent = '✓ Outcome recorded';
+    $('feedbackStatus').classList.remove('error');
+    $('feedbackCustomerId').value = '';
+    $('feedbackCallMade').value = '';
+    $('feedbackSuccess').value = '';
+    $('feedbackNotes').value = '';
+
+    setTimeout(() => { $('feedbackStatus').textContent = ''; }, 3000);
+  } catch (err) {
+    $('feedbackStatus').textContent = 'Error: ' + err.message;
+    $('feedbackStatus').classList.add('error');
+  }
+});
+</script>
+</body>
+</html>
