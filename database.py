@@ -18,15 +18,21 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # SQLite uses different connection args than PostgreSQL
-if "postgresql" in DATABASE_URL:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-else:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+try:
+    if "postgresql" in DATABASE_URL:
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
+    else:
+        engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-print(f"[Database] Using: {'PostgreSQL' if 'postgresql' in DATABASE_URL else 'SQLite'}")
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base = declarative_base()
+    print(f"[Database] Using: {'PostgreSQL' if 'postgresql' in DATABASE_URL else 'SQLite'}")
+except Exception as e:
+    print(f"[Database] Warning: Could not initialize database: {e}")
+    # Fallback to SQLite
+    engine = create_engine("sqlite:///./churn_data.db", connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base = declarative_base()
 
 
 class ScoringResult(Base):
