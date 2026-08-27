@@ -8,124 +8,194 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F6F7F9; --surface:#FFFFFF; --ink:#171A21; --muted:#6B7280;
-    --line:#E5E8ED;
-    --high:#C4372C; --high-soft:#FBEAE8;
-    --med:#B97E10;  --med-soft:#FBF3E2;
-    --low:#2E7D4F;  --low-soft:#E8F3EC;
-    --focus:#171A21;
+    --bg:#F6F7FB; --surface:#FFFFFF; --surface-2:#F2F4F9;
+    --ink:#171A21; --muted:#6B7280;
+    --line:#E7EAF1; --line-strong:#D6DBE6;
+    --high:#DC2626; --high-soft:#FDECEA;
+    --med:#B45309;  --med-soft:#FDF3E1;
+    --low:#047857;  --low-soft:#E6F5EE;
+    --accent:#F96167; --accent2:#FB923C;
+    --focus:#F96167;
+    --shadow:0 8px 30px rgba(23,26,33,.06);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{font-size:16px}
+  html{font-size:16px;color-scheme:light}
   body{
     background:var(--bg); color:var(--ink);
+    background-image:
+      radial-gradient(900px 480px at 85% -10%, rgba(249,97,103,.09), transparent 60%),
+      radial-gradient(700px 420px at -10% 25%, rgba(79,107,255,.07), transparent 60%),
+      radial-gradient(600px 500px at 50% 110%, rgba(52,211,153,.05), transparent 60%);
+    background-attachment:fixed;
     font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-    line-height:1.5; min-height:100vh; padding:0 20px 80px;
+    line-height:1.5; min-height:100vh; padding:0 20px 60px;
   }
-  .wrap{max-width:960px;margin:0 auto}
-  header{padding:44px 0 8px}
-  .brand{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:1.05rem;letter-spacing:.01em}
-  .brand .dot{color:var(--high)}
+  ::selection{background:rgba(249,97,103,.25)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#D6DBE6;border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:#BEC6D6}
+
+  .wrap{max-width:1060px;margin:0 auto}
+  header{padding:48px 0 8px}
+  .brand{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:1.05rem;letter-spacing:.04em;
+    display:inline-flex;align-items:center;gap:8px}
+  .brand::before{content:"";width:9px;height:9px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 12px var(--accent);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .brand .dot{color:var(--accent)}
   h1{
     font-family:"Space Grotesk",sans-serif;font-weight:700;
-    font-size:clamp(1.9rem,4.5vw,2.9rem);line-height:1.12;
-    margin:26px 0 10px;max-width:21ch;
+    font-size:clamp(2rem,5vw,3.2rem);line-height:1.08;
+    margin:26px 0 14px;max-width:22ch;letter-spacing:-.01em;
+    background:linear-gradient(92deg,#171A21 30%,var(--accent) 75%,var(--accent2) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   }
-  .sub{color:var(--muted);max-width:52ch;margin-bottom:30px}
+  .sub{color:var(--muted);max-width:56ch;margin-bottom:18px;font-size:1.02rem}
+  .hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:34px}
+  .hbadge{font-size:.78rem;font-weight:600;color:var(--muted);
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 13px}
   .mono{font-family:"IBM Plex Mono",monospace}
 
   .dropzone{
-    background:var(--surface);border:1.5px dashed var(--line);border-radius:14px;
-    padding:44px 28px;text-align:center;transition:border-color .15s ease;
+    background:var(--surface);border:1.5px dashed var(--line-strong);border-radius:18px;
+    padding:46px 28px;text-align:center;transition:border-color .2s ease, box-shadow .2s ease;
   }
-  .dropzone.dragover{border-color:var(--ink)}
-  .dropzone p{color:var(--muted);margin-top:10px;font-size:.92rem}
+  .dropzone:hover{border-color:rgba(249,97,103,.5)}
+  .dropzone.dragover{border-color:var(--accent);box-shadow:0 0 0 4px rgba(249,97,103,.12), 0 0 40px rgba(249,97,103,.1)}
+  .dropzone p{color:var(--muted);margin-top:12px;font-size:.9rem}
   .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
   button{
-    font:inherit;font-weight:600;border-radius:9px;padding:11px 20px;cursor:pointer;
-    border:1.5px solid var(--ink);transition:transform .08s ease;
+    font:inherit;font-weight:600;border-radius:10px;padding:12px 22px;cursor:pointer;
+    border:1px solid var(--line-strong);transition:transform .12s ease, box-shadow .2s ease, background .2s ease;
   }
   button:active{transform:translateY(1px)}
   button:focus-visible{outline:2.5px solid var(--focus);outline-offset:2px}
-  .btn-primary{background:var(--ink);color:#fff}
-  .btn-ghost{background:transparent;color:var(--ink)}
+  .btn-primary{
+    background:linear-gradient(135deg,var(--accent),#E0483F);color:#fff;border:none;
+    box-shadow:0 4px 20px rgba(249,97,103,.35);
+  }
+  .btn-primary:hover{box-shadow:0 6px 28px rgba(249,97,103,.5);transform:translateY(-1px)}
+  .btn-ghost{background:var(--surface);color:var(--ink)}
+  .btn-ghost:hover{background:var(--surface-2)}
   .status{margin-top:14px;font-size:.9rem;color:var(--muted);min-height:1.4em}
   .status.error{color:var(--high)}
 
-  .results{display:none;margin-top:34px}
-  .results.show{display:block}
-  .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .results{display:none;margin-top:36px}
+  .results.show{display:block;animation:fadeUp .45s ease both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  .summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px}
   .chip{
-    background:var(--surface);border:1px solid var(--line);border-radius:10px;
-    padding:12px 16px;min-width:118px;
+    flex:1;min-width:130px;
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;animation:fadeUp .5s ease both;position:relative;overflow:hidden;
   }
-  .chip .n{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:1.35rem}
-  .chip .l{font-size:.78rem;color:var(--muted);margin-top:2px}
+  .chip::after{content:"";position:absolute;inset:0;border-radius:inherit;
+    background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 45%);pointer-events:none}
+  .chip:nth-child(2){animation-delay:.05s}.chip:nth-child(3){animation-delay:.1s}
+  .chip:nth-child(4){animation-delay:.15s}.chip:nth-child(5){animation-delay:.2s}
+  .chip .n{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:1.7rem;letter-spacing:-.02em}
+  .chip .l{font-size:.75rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.07em}
+  .chip{box-shadow:var(--shadow)}
   .chip.high .n{color:var(--high)}
   .chip.med  .n{color:var(--med)}
   .chip.low  .n{color:var(--low)}
 
-  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  .tablehead{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);gap:10px;flex-wrap:wrap}
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:var(--shadow)}
+  .tablehead{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;
+    border-bottom:1px solid var(--line);gap:10px;flex-wrap:wrap;background:#FAFBFD}
   .tablehead h2{font-family:"Space Grotesk",sans-serif;font-size:1.05rem}
   table{width:100%;border-collapse:collapse;font-size:.92rem}
   th{
-    text-align:left;padding:10px 18px;color:var(--muted);font-weight:500;
-    font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;
+    text-align:left;padding:11px 20px;color:var(--muted);font-weight:600;
+    font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;
     border-bottom:1px solid var(--line);
   }
-  td{padding:13px 18px;border-bottom:1px solid var(--line);vertical-align:top}
+  td{padding:14px 20px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:not(.explain-row){transition:background .15s ease}
+  tbody tr:not(.explain-row):hover{background:#F8F9FC}
   tr:last-child td{border-bottom:none}
   .risk{min-width:150px}
-  .risk .pct{font-family:"IBM Plex Mono",monospace;font-weight:600}
-  .bar{height:4px;border-radius:2px;background:var(--line);margin-top:6px;max-width:120px}
-  .bar i{display:block;height:100%;border-radius:2px}
-  tr.b-High .bar i{background:var(--high)}
-  tr.b-Medium .bar i{background:var(--med)}
-  tr.b-Low .bar i{background:var(--low)}
-  .band{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.76rem;font-weight:600}
-  .b-High .band{background:var(--high-soft);color:var(--high)}
-  .b-Medium .band{background:var(--med-soft);color:var(--med)}
-  .b-Low .band{background:var(--low-soft);color:var(--low)}
-  .drv{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;
-       padding:2px 8px;font-size:.78rem;color:var(--muted);margin:2px 4px 2px 0}
-  .explain-btn{padding:5px 10px;font-size:.78rem;border-radius:6px;white-space:nowrap}
-  .explain-row td{background:var(--bg);font-size:.88rem;line-height:1.6;
-       white-space:pre-wrap;color:var(--ink);border-left:3px solid var(--high)}
+  .risk .pct{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.98rem}
+  .bar{height:5px;border-radius:3px;background:rgba(148,163,184,.15);margin-top:7px;max-width:130px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:3px;animation:grow .8s cubic-bezier(.2,.8,.3,1) both}
+  @keyframes grow{from{width:0!important}}
+  tr.b-High .bar i{background:linear-gradient(90deg,#DC2626,var(--high));box-shadow:0 0 10px rgba(248,113,113,.5)}
+  tr.b-Medium .bar i{background:linear-gradient(90deg,#D97706,var(--med))}
+  tr.b-Low .bar i{background:linear-gradient(90deg,#059669,var(--low))}
+  .band{display:inline-block;border-radius:999px;padding:4px 12px;font-size:.74rem;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase}
+  .b-High .band{background:var(--high-soft);color:var(--high);border:1px solid rgba(248,113,113,.3)}
+  .b-Medium .band{background:var(--med-soft);color:var(--med);border:1px solid rgba(251,191,36,.3)}
+  .b-Low .band{background:var(--low-soft);color:var(--low);border:1px solid rgba(52,211,153,.3)}
+  .drv{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;
+       padding:3px 9px;font-size:.77rem;color:var(--muted);margin:2px 5px 2px 0}
+  .explain-btn{padding:6px 11px;font-size:.76rem;border-radius:8px;white-space:nowrap}
+  .explain-row td{background:rgba(249,97,103,.05);font-size:.88rem;line-height:1.65;
+       white-space:pre-wrap;color:var(--ink);border-left:3px solid var(--accent);
+       animation:fadeUp .3s ease both}
   .foot{margin-top:16px;font-size:.82rem;color:var(--muted)}
 
   /* Tabs */
-  .tabs{display:flex;gap:8px;margin-top:24px;border-bottom:1px solid var(--line);padding-bottom:12px}
-  .tab{padding:10px 16px;border:none;background:transparent;cursor:pointer;color:var(--muted);font-weight:600;border-radius:0}
-  .tab.active{color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:10px}
+  .tabs{display:inline-flex;gap:4px;margin-top:26px;background:var(--surface);
+    border:1px solid var(--line);border-radius:12px;padding:5px;flex-wrap:wrap}
+  .tab{padding:9px 18px;border:none;background:transparent;cursor:pointer;color:var(--muted);
+    font-weight:600;font-size:.9rem;border-radius:8px;transition:all .2s ease}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:#fff;background:linear-gradient(135deg,var(--accent),#E0483F);
+    box-shadow:0 2px 14px rgba(249,97,103,.4)}
 
-  /* Tab content */
-  .tab-content{display:none;margin-top:20px}
-  .tab-content.show{display:block}
+  .tab-content{display:none;margin-top:22px}
+  .tab-content.show{display:block;animation:fadeUp .35s ease both}
 
   /* Charts */
-  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
-  .chart-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;overflow:hidden}
-  .chart-title{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:1rem;margin-bottom:12px}
+  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+  .chart-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;
+    overflow:hidden;transition:border-color .2s ease}
+  .chart-card:hover{border-color:var(--line-strong)}
+  .chart-title{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:.98rem;margin-bottom:10px}
   #probDistChart, #riskPieChart, #tenureChart, #driversChart{height:300px;width:100%}
 
   /* Analytics cards */
-  .analytics-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;margin-top:16px}
-  .analytics-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
-  .analytics-value{font-size:1.8rem;font-weight:700;color:var(--high);margin-top:4px}
-  .analytics-label{font-size:.85rem;color:var(--muted);margin-top:4px}
+  .analytics-row{display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:14px;margin-top:16px}
+  .analytics-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:18px 14px;text-align:center;position:relative;overflow:hidden}
+  .analytics-card::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 50%);pointer-events:none}
+  .analytics-card{box-shadow:var(--shadow)}
+  .analytics-value{font-family:"IBM Plex Mono",monospace;font-size:2rem;font-weight:700;color:var(--accent);
+    margin-top:6px}
+  .analytics-label{font-size:.74rem;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
 
   /* Retention feedback */
-  .feedback-form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:20px;max-width:500px}
-  .feedback-form input, .feedback-form select, .feedback-form textarea{width:100%;padding:8px;margin:8px 0 16px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:.95rem}
-  .feedback-form button{width:100%;margin-top:12px}
+  .feedback-form{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:26px;margin-top:20px;max-width:520px}
+  .feedback-form h3{font-family:"Space Grotesk",sans-serif;margin-bottom:6px}
+  .feedback-form{box-shadow:var(--shadow)}
+  .feedback-form input, .feedback-form select, .feedback-form textarea{
+    width:100%;padding:11px 13px;margin:8px 0 16px;background:#F8F9FC;
+    border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:.94rem;color:var(--ink);
+    transition:border-color .15s ease}
+  .feedback-form input:focus, .feedback-form select:focus, .feedback-form textarea:focus{
+    outline:none;border-color:var(--accent)}
+  .feedback-form button{width:100%;margin-top:10px}
+
+  .suggest-result{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:14px;box-shadow:var(--shadow);padding:22px 24px;margin-top:18px;max-width:680px;
+    font-size:.92rem;line-height:1.7;white-space:pre-wrap;animation:fadeUp .3s ease both}
+  .suggest-result .sr-head{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:1.02rem;
+    margin-bottom:10px;white-space:normal}
+
+  .pagefoot{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);
+    font-size:.8rem;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
   @media (max-width:640px){
     .col-drivers{display:none}
     .charts-grid{grid-template-columns:1fr}
-    .analytics-row{grid-template-columns:1fr}
+    .analytics-row{grid-template-columns:1fr 1fr}
   }
-  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
 </style>
 </head>
 <body>
@@ -137,6 +207,12 @@
     <p class="sub">Upload a customer CSV. Every customer comes back scored, ranked,
     and tagged with the top reasons they're at risk — so a retention team knows
     exactly who to call first.</p>
+    <div class="hero-badges">
+      <span class="hbadge">⚡ Real-time ML scoring</span>
+      <span class="hbadge">🧠 ROC-AUC 0.84</span>
+      <span class="hbadge">💡 Explainable AI</span>
+      <span class="hbadge">🗄️ Persistent history</span>
+    </div>
   </header>
 
   <div class="dropzone" id="dropzone">
@@ -158,6 +234,7 @@
       <button class="tab" data-tab="analytics">Analytics</button>
       <button class="tab" data-tab="retention">Retention Tracker</button>
       <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="suggestions">🎯 AI Suggestions</button>
     </div>
 
     <!-- Results Tab -->
@@ -224,6 +301,20 @@
       <div id="feedbackStatus" class="status" style="margin-top:12px;"></div>
     </div>
 
+    <!-- AI Suggestions Tab -->
+    <div class="tab-content" id="suggestions-tab">
+      <div class="feedback-form">
+        <h3>🎯 AI Retention Action Plan</h3>
+        <p style="color:var(--muted);font-size:.88rem;margin-bottom:8px">
+          Enter the ID of any scored customer. The AI builds a tailored plan:
+          when to act, which channel, what offers to make, and an opening script.
+        </p>
+        <input type="text" id="suggestCustomerId" placeholder="Customer ID (e.g. CUST-0001)">
+        <button class="btn-primary" id="suggestBtn">Get action plan</button>
+      </div>
+      <div id="suggestResult" class="suggest-result" style="display:none"></div>
+    </div>
+
     <!-- History Tab -->
     <div class="tab-content" id="history-tab">
       <div class="tablecard" style="margin-bottom:20px">
@@ -252,6 +343,11 @@
       </div>
     </div>
   </section>
+
+  <footer class="pagefoot">
+    <span>churn<span style="color:var(--accent)">.</span>triage — predictive retention</span>
+    <span>Logistic Regression · FastAPI · PostgreSQL · Claude AI</span>
+  </footer>
 </div>
 
 <script>
@@ -407,6 +503,42 @@ async function loadHistory() {
   }
 }
 
+// ===== AI SUGGESTIONS =====
+async function getSuggestions() {
+  const id = $('suggestCustomerId').value.trim();
+  const box = $('suggestResult');
+  if (!id) {
+    box.style.display = 'block';
+    box.textContent = 'Please enter a customer ID.';
+    return;
+  }
+  box.style.display = 'block';
+  box.innerHTML = '';
+  box.textContent = '🤖 Building a retention plan for ' + id + '…';
+  try {
+    const res = await fetch('/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: id })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Request failed.');
+    const p = data.profile;
+    box.innerHTML = '<div class="sr-head"></div><div class="sr-body"></div>';
+    box.querySelector('.sr-head').textContent =
+      `${p.customer_id} — ${(p.probability * 100).toFixed(1)}% churn risk (${p.band})`;
+    box.querySelector('.sr-body').textContent =
+      (data.source === 'llm' ? '🤖 ' : '📋 ') + data.suggestions +
+      (data.note ? '\n(' + data.note + ')' : '');
+  } catch (err) {
+    box.textContent = '⚠️ ' + err.message;
+  }
+}
+$('suggestBtn').addEventListener('click', getSuggestions);
+$('suggestCustomerId').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') getSuggestions();
+});
+
 // ===== AI EXPLANATIONS =====
 $('tbody').addEventListener('click', async (e) => {
   const btn = e.target.closest('.explain-btn');
@@ -499,12 +631,15 @@ function renderCharts(data) {
   const tenures = data.chart_data.tenures;
 
   // Probability distribution
+  const plotCfg = { displayModeBar: false, responsive: true };
+
   Plotly.newPlot('probDistChart', [{
     x: probs,
     type: 'histogram',
-    marker: { color: '#C4372C' },
+    marker: { color: '#F96167' },
     nbinsx: 20
-  }], { margin: { l: 40, r: 20, t: 0, b: 30 }, showlegend: false, height: 300 });
+  }], { margin: { l: 40, r: 20, t: 0, b: 30 }, showlegend: false, height: 300,
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)' }, plotCfg);
 
   // Risk pie chart
   const bandCounts = { High: 0, Medium: 0, Low: 0 };
@@ -513,8 +648,10 @@ function renderCharts(data) {
     labels: Object.keys(bandCounts),
     values: Object.values(bandCounts),
     type: 'pie',
-    marker: { colors: ['#C4372C', '#B97E10', '#2E7D4F'] }
-  }], { margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: true, height: 300 });
+    marker: { colors: ['#DC2626', '#F59E0B', '#10B981'] },
+    hole: 0.45
+  }], { margin: { l: 0, r: 0, t: 0, b: 0 }, showlegend: true, height: 300,
+        paper_bgcolor: 'rgba(0,0,0,0)' }, plotCfg);
 
   // Tenure vs Churn
   if (tenures.length > 0) {
@@ -529,8 +666,9 @@ function renderCharts(data) {
       yaxis: { title: 'Churn Probability' },
       margin: { l: 50, r: 20, t: 0, b: 40 },
       showlegend: false,
-      height: 300
-    });
+      height: 300,
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+    }, plotCfg);
   }
 
   // Top drivers — real counts of how often each driver appears
@@ -545,8 +683,9 @@ function renderCharts(data) {
     yaxis: { title: 'Customers affected' },
     margin: { l: 50, r: 20, t: 0, b: 60 },
     showlegend: false,
-    height: 300
-  });
+    height: 300,
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+  }, plotCfg);
 }
 
 // ===== RETENTION FEEDBACK =====

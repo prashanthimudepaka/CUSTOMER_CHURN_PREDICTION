@@ -392,6 +392,120 @@ def explain(req: ExplainRequest) -> dict:
                 "note": "LLM unavailable — using built-in explanation."}
 
 
+class SuggestRequest(BaseModel):
+    customer_id: str
+
+
+SUGGEST_SYSTEM = (
+    "You are a senior customer-retention strategist for a telecom company. "
+    "Given one customer's churn-risk profile, produce a concrete action plan with "
+    "four numbered sections: 1) Urgency — when and how fast to act; 2) Best channel "
+    "— call, email, or SMS and why; 3) Offers — two or three specific promotions "
+    "tailored to their churn drivers, with concrete terms; 4) Opening script — two "
+    "sentences the retention agent can say verbatim. Be specific and practical. "
+    "Plain text only, no markdown symbols. Under 220 words."
+)
+
+# Driver-specific offers used by the no-API-key fallback.
+DRIVER_OFFERS = {
+    "Contract = Month-to-month": "Offer 15-20% off for switching to a 1-year contract.",
+    "tenure (low)": "Schedule a 10-minute onboarding check-in and offer a first-90-days perk.",
+    "InternetService = Fiber optic": "Apply a loyalty credit or price-match against local competitors.",
+    "TechSupport = No": "Add 3 months of free premium tech support.",
+    "OnlineSecurity = No": "Bundle a free online-security add-on for 6 months.",
+    "PaymentMethod = Electronic check": "Offer a small monthly discount for enrolling in auto-pay.",
+    "MonthlyCharges (high)": "Review their plan for a right-sizing discount before a competitor does.",
+}
+
+BAND_URGENCY = {
+    "High": "Call within 24 hours — this customer can leave at any moment.",
+    "Medium": "Reach out within the week by phone or personalized email.",
+    "Low": "No urgent action; include in the next loyalty campaign and monitor.",
+}
+
+
+def _template_suggestions(customer_id: str, probability: float, band: str,
+                          drivers: list[str]) -> str:
+    lines = [
+        f"1) Urgency: {BAND_URGENCY.get(band, BAND_URGENCY['Medium'])}",
+        "2) Channel: phone call for High risk, personalized email otherwise.",
+        "3) Offers:",
+    ]
+    offers = [DRIVER_OFFERS[d] for d in drivers if d in DRIVER_OFFERS]
+    if not offers:
+        offers = ["Offer a loyalty discount tied to a longer commitment."]
+    lines += [f"   - {o}" for o in offers]
+    lines.append(
+        f'4) Opening script: "Hi, this is [name] from [company]. You have been with us '
+        f'and we want to make sure you are getting the most from your plan — I have a '
+        f'couple of offers picked out just for you."'
+    )
+    return "\n".join(lines)
+
+
+@app.post("/suggest")
+def suggest_actions(req: SuggestRequest, db=Depends(get_db)) -> dict:
+    """AI retention action plan for one previously scored customer."""
+    if not DB_AVAILABLE or db is None:
+        raise HTTPException(status_code=503, detail="Database not configured.")
+
+    last = (
+        db.query(ScoringResult)
+        .filter(ScoringResult.customer_id == req.customer_id)
+        .order_by(ScoringResult.timestamp.desc())
+        .first()
+    )
+    if last is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Customer '{req.customer_id}' has not been scored yet — "
+                   "upload a CSV containing them first.",
+        )
+
+    drivers = json.loads(last.top_drivers) if last.top_drivers else []
+    profile = {
+        "customer_id": last.customer_id,
+        "probability": last.churn_probability,
+        "band": last.risk_band,
+        "tenure": last.tenure,
+        "drivers": drivers,
+    }
+
+    client = _get_llm()
+    if client is None:
+        return {
+            "suggestions": _template_suggestions(
+                last.customer_id, last.churn_probability, last.risk_band, drivers),
+            "source": "template", "profile": profile,
+        }
+
+    tenure_txt = f"{last.tenure:.0f} months" if last.tenure is not None else "unknown"
+    prompt = (
+        f"Customer {last.customer_id}: churn probability "
+        f"{last.churn_probability:.0%}, risk band {last.risk_band}, tenure "
+        f"{tenure_txt}. Top churn drivers: {', '.join(drivers) or 'none identified'}."
+    )
+    try:
+        msg = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1024,
+            system=SUGGEST_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = next((b.text for b in msg.content if b.type == "text"), "")
+        if msg.stop_reason == "refusal" or not text.strip():
+            raise ValueError("empty or refused")
+        return {"suggestions": text, "source": "llm",
+                "model": CLAUDE_MODEL, "profile": profile}
+    except Exception:
+        return {
+            "suggestions": _template_suggestions(
+                last.customer_id, last.churn_probability, last.risk_band, drivers),
+            "source": "template", "profile": profile,
+            "note": "LLM unavailable — using built-in playbook.",
+        }
+
+
 @app.get("/history")
 def get_history(limit: int = 200, db=Depends(get_db)) -> dict:
     """Individual records: every scoring event and every retention call."""
