@@ -1,73 +1,110 @@
-# Churn Triage
+<div align="center">
 
-Upload a customer CSV, get back every customer scored for churn risk, ranked,
-and tagged with the top reasons they're at risk — so a retention team knows who
-to call first.
+# 📉 Churn Triage
 
-**Live demo: https://churn-triage.onrender.com** 🚀
-*(free tier — first load after 15 min idle takes ~30-50s to wake up)*
+**Know who's leaving before they leave.**
 
-## What it does
+An end-to-end machine learning app that scores telecom customers for churn risk,
+explains *why* each one is at risk, and gives retention teams an AI-generated
+action plan for saving them.
 
-- **POST /predict** — accepts a CSV (Telco customer schema), returns per-customer
-  churn probability, a High/Medium/Low band, and the top 3 drivers pushing that
-  specific customer toward churn
-- **GET /sample** — a 25-row sample CSV so anyone can try the app instantly
-- **GET /health** — service status plus held-out model metrics
-- **GET /** — the dashboard UI (drag-and-drop upload, ranked table, CSV export)
+🔴 **[Live demo → churn-triage.onrender.com](https://churn-triage.onrender.com)**
+*(free tier — first load after 15 min idle takes ~30–50 s to wake up)*
 
-## Model
+`Python` · `FastAPI` · `scikit-learn` · `PostgreSQL` · `Plotly` · `Claude AI`
 
-Logistic regression with one-hot encoding and standardized numerics
-(scikit-learn pipeline), trained on the IBM Telco churn dataset (7,043 customers).
+</div>
 
-Held-out (20%) performance: **ROC-AUC 0.84**, recall 0.78 at the 0.5 threshold
-with balanced class weights — tuned toward catching leavers, since missing a
-churner costs more than a wasted retention call.
+---
 
-Per-customer drivers come from the logistic regression itself: each transformed
-feature's contribution to the churn logit is its value times its coefficient,
-and the top positive contributions are reported. No SHAP dependency needed;
-fully explainable in an interview.
+## ✨ What it does
 
-## Run locally
+Upload a customer CSV → every customer comes back **scored, ranked, and explained**.
+
+| Feature | Description |
+|---|---|
+| 🎯 **Churn scoring** | Logistic regression scores every customer 0–100% and sorts riskiest-first |
+| 💡 **Explainability** | Each customer gets their top 3 churn drivers, straight from the model's coefficients — no black box |
+| 🤖 **AI explanations** | Click *Explain* on any row and Claude writes a plain-English analysis of that customer |
+| 🎯 **AI action plans** | Enter a customer ID and get a tailored retention plan: urgency, channel, offers, and a call script |
+| 📊 **Analytics** | Live charts — probability distribution, risk breakdown, tenure vs. churn, top drivers |
+| 📞 **Retention tracker** | Log call outcomes and measure your real success rate over time |
+| 📜 **History** | Every score and every call is stored in PostgreSQL — nothing resets |
+
+## 🧠 The model
+
+Logistic regression on the IBM Telco churn dataset (7,043 customers), with
+one-hot encoded categoricals and standardized numerics in a single
+scikit-learn pipeline.
+
+**Held-out performance: ROC-AUC 0.84 · recall 0.78 · precision 0.75** (at the
+0.5 threshold, with balanced class weights — tuned to catch leavers, since a
+missed churner costs more than a wasted call).
+
+**Why logistic regression instead of XGBoost?** For retention work,
+explainability beats a few points of AUC. Every driver shown in the app is
+just `feature value × coefficient` — exact, defensible, and explainable to a
+customer on the phone in one sentence.
+
+## 🚀 Run it locally
 
 ```bash
 pip install -r requirements.txt
-python train_model.py        # downloads data, trains, saves model + sample
-uvicorn main:app --reload
-# open http://127.0.0.1:8000
+python train_model.py        # downloads data, trains, saves the model
+uvicorn main:app --reload    # then open http://127.0.0.1:8000
 ```
 
-## Deploy (free tier)
+That's it. Locally the app uses SQLite automatically; no configuration needed.
 
-1. Push this folder to a public GitHub repo.
-2. On https://render.com → New → Web Service → connect the repo.
-3. Build command: `pip install -r requirements.txt && python train_model.py`
-4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Deploy. Your URL is live — put it at the top of this README and on your resume.
+## 🔌 API
 
-Training runs in the build step, so the model is rebuilt from source on every
-deploy — no pickle files in git, no version-mismatch surprises.
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/` | GET | The dashboard UI |
+| `/predict` | POST | Score a CSV — returns probabilities, bands, and drivers |
+| `/explain` | POST | AI explanation for one customer |
+| `/suggest` | POST | AI retention action plan for one scored customer |
+| `/analytics` | GET | Aggregated stats and chart data |
+| `/history` | GET | Every stored score and retention call |
+| `/feedback` | POST | Record a retention call outcome |
+| `/sample` | GET | A 25-row demo CSV |
+| `/health` | GET | Service status and model metrics |
 
-Note: Render's free tier sleeps after inactivity; the first request after a
-while takes ~30s to wake. Mention this to anyone you send the link to, or add
-a free uptime pinger.
+## 📁 Project structure
 
-## Roadmap
+```
+churn-dashboard/
+├── main.py               FastAPI app — scoring, explanations, analytics, history
+├── train_model.py        Trains and evaluates the model, saves artifacts
+├── common.py             Shared data cleaning (training and API stay in sync)
+├── database.py           SQLAlchemy models — SQLite locally, PostgreSQL in prod
+├── static/index.html     The entire frontend (vanilla JS, no build step)
+├── model/                Trained pipeline + held-out metrics
+├── data/                 Sample CSV for the demo button
+└── requirements.txt      Pinned dependencies
+```
 
-- [ ] **Stage 2 — accounts:** Next.js frontend on Vercel, Supabase auth
-      (email magic link), saved scoring history per user
-- [ ] **Stage 3 — MLOps signal:** Dockerfile, request logging, a model
-      version stamp in responses, retraining script with metric comparison
+## ☁️ Deploy (Render free tier)
+
+1. Fork/push this repo to GitHub.
+2. On [render.com](https://render.com): **New → PostgreSQL** → copy the Internal Database URL.
+3. **New → Web Service** → connect the repo:
+   - Build: `pip install -r requirements.txt`
+   - Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variables:
+   - `DATABASE_URL` — the PostgreSQL URL from step 2 *(required for persistent history)*
+   - `ANTHROPIC_API_KEY` — from [console.anthropic.com](https://console.anthropic.com) *(optional — enables AI explanations; without it the app falls back to built-in templates)*
+5. Deploy. Done.
+
+## 🗺️ Roadmap
+
+- [ ] User accounts and per-team scoring history
 - [ ] Threshold tuning UI (precision/recall trade-off slider)
+- [ ] Scheduled retraining with metric comparison
+- [ ] CRM webhooks (auto-push high-risk customers to Salesforce/HubSpot)
 
-## Project structure
+---
 
-```
-common.py            shared data cleaning (training and API stay in sync)
-train_model.py       trains, evaluates, saves model + sample data
-main.py              FastAPI app: scoring API + serves the UI
-static/index.html    dashboard frontend (vanilla JS, no build step)
-requirements.txt     pinned dependencies
-```
+<div align="center">
+Built with FastAPI + scikit-learn + Claude · MIT-friendly · PRs welcome
+</div>

@@ -1,7 +1,12 @@
-"""Churn risk scoring API.
+"""Churn Triage — the FastAPI backend.
 
-Run locally:  uvicorn main:app --reload
-Then open:    http://127.0.0.1:8000
+One file, four jobs:
+  1. Score uploaded customer CSVs with the trained model  (/predict)
+  2. Explain each prediction — model drivers + optional Claude AI  (/explain, /suggest)
+  3. Serve analytics and history from the database  (/analytics, /history)
+  4. Track retention call outcomes  (/feedback)
+
+Run locally:  uvicorn main:app --reload   →  http://127.0.0.1:8000
 """
 
 import io
@@ -34,6 +39,8 @@ except Exception as exc:  # pragma: no cover
     def get_db():  # no-op dependency so endpoints still work
         yield None
 
+# ──────────────────────────── Model loading ────────────────────────────
+
 MODEL_PATH = pathlib.Path("model/model.pkl")
 METRICS_PATH = pathlib.Path("model/metrics.json")
 SAMPLE_PATH = pathlib.Path("data/sample_customers.csv")
@@ -61,6 +68,9 @@ _prep = model.named_steps["prep"]
 _clf = model.named_steps["clf"]
 _coefs = _clf.coef_[0]
 _feature_names = _prep.get_feature_names_out()
+
+
+# ─────────────────────────── Request schemas ───────────────────────────
 
 
 class FeedbackRequest(BaseModel):
@@ -129,6 +139,9 @@ def _template_explanation(req: ExplainRequest) -> str:
         "(e.g., a discount for moving to a longer contract)."
     )
     return "\n".join(lines)
+
+
+# ──────────────────────────── Scoring logic ────────────────────────────
 
 
 def _pretty(name: str) -> str:
@@ -230,6 +243,9 @@ def score_dataframe(df: pd.DataFrame, db=None) -> dict:
         "model": {"roc_auc": metrics.get("roc_auc")},
         "rows": rows,
     }
+
+
+# ──────────────────────────── API endpoints ────────────────────────────
 
 
 @app.get("/health")

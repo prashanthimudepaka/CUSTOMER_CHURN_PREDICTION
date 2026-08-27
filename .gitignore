@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local development database (production uses PostgreSQL)
+churn_data.db
+
+# Auto-downloaded training data (train_model.py fetches it)
+data/telco.csv
+
+# Secrets
+.env
